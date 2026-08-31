@@ -7,15 +7,15 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   await connectDb();
-const id =(await context.params).id
-  const booking =await Booking.findOneAndUpdate(
-  { _id: id, status: "requested" },
-  { status: "cancelled" }
-);
+  const id = (await context.params).id
+  const booking = await Booking.findOneAndUpdate(
+    { _id: id, status: "requested" },
+    { status: "cancelled" }
+  );
 
   if (!booking)
     return NextResponse.json({ message: "Not found" }, { status: 404 });
-booking.status = "cancelled";
+  booking.status = "cancelled";
 
 
 

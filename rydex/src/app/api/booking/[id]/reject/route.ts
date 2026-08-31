@@ -6,10 +6,10 @@ import axios from "axios";
 
 export async function POST(
   req: NextRequest,
- context : { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   await connectDb();
-const id=(await context.params).id
+  const id = (await context.params).id
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -28,16 +28,16 @@ const id=(await context.params).id
     { new: true }
   );
   await axios.post(
-  `${process.env.NEXT_PUBLIC_SOCKET_SERVER}/emit`,
-  {
-    userId: booking.user,
-    event: "booking-updated",
-    data: {
-      bookingId: booking._id,
-      status: "rejected",
-    },
-  }
-);
+    `${process.env.NEXT_PUBLIC_SOCKET_SERVER}/emit`,
+    {
+      userId: booking.user,
+      event: "booking-updated",
+      data: {
+        bookingId: booking._id,
+        status: "rejected",
+      },
+    }
+  );
 
   if (!booking) {
     return NextResponse.json(

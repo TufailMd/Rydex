@@ -4,10 +4,10 @@ import { NextResponse } from "next/server";
 
 export async function POST(
   req: Request,
-  context: { params:Promise< { id: string } >}
+  context: { params: Promise<{ id: string }> }
 ) {
   await connectDb();
-   const id=(await context.params).id
+  const id = (await context.params).id
   const { method } = await req.json();
   const booking = await Booking.findById(id);
 
