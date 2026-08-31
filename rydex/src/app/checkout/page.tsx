@@ -7,7 +7,7 @@ import {
   XCircle, Clock, CreditCard, Banknote,
   ArrowRight, RotateCcw, AlertCircle, Wallet,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { getSocket } from "@/lib/socket";
 
@@ -20,39 +20,41 @@ type Status =
   | "rejected" | "expired" | "cancelled"
   | "payment" | "confirmed";
 
-export default function CheckoutPage() {
+// export default function CheckoutPage() {
+// const params = useSearchParams();
+function CheckoutContent() {
   const params = useSearchParams();
 
-  const pickup    = params.get("pickup")    || "Pickup Location";
-  const drop      = params.get("drop")      || "Drop Location";
-  const vehicle   = params.get("vehicle")   || "car";
+  const pickup = params.get("pickup") || "Pickup Location";
+  const drop = params.get("drop") || "Drop Location";
+  const vehicle = params.get("vehicle") || "car";
   const vehicleId = params.get("vehicleId");
-  const fare      = Number(params.get("fare")) || 249;
+  const fare = Number(params.get("fare")) || 249;
   const mobileNumber = params.get("mobileNumber") || "";
-  const driverId  = params.get("driverId");
+  const driverId = params.get("driverId");
   const pickupLat = Number(params.get("pickupLat"));
   const pickupLng = Number(params.get("pickupLng"));
-  const dropLat   = Number(params.get("dropLat"));
-  const dropLng   = Number(params.get("dropLng"));
+  const dropLat = Number(params.get("dropLat"));
+  const dropLng = Number(params.get("dropLng"));
 
   const VehicleIcon = VEHICLE_ICONS[vehicle.toLowerCase()] || Car;
 
-  const [loading,       setLoading]       = useState(false);
-  const [bookingId,     setBookingId]     = useState<string | null>(null);
-  const [status,        setStatus]        = useState<Status>("idle");
+  const [loading, setLoading] = useState(false);
+  const [bookingId, setBookingId] = useState<string | null>(null);
+  const [status, setStatus] = useState<Status>("idle");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "online" | null>(null);
 
   /* ── CREATE BOOKING ── */
   const handleCreateBooking = async () => {
     try {
       setLoading(true);
-      const res  = await fetch("/api/booking/create", {
+      const res = await fetch("/api/booking/create", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           vehicleId, driverId,
           pickupAddress: pickup, dropAddress: drop,
           pickupLocation: { type: "Point", coordinates: [pickupLng, pickupLat] },
-          dropLocation:   { type: "Point", coordinates: [dropLng,   dropLat]   },
+          dropLocation: { type: "Point", coordinates: [dropLng, dropLat] },
           fare, mobileNumber,
         }),
       });
@@ -64,114 +66,114 @@ export default function CheckoutPage() {
   };
 
   function loadRazorpayScript() {
-  return new Promise((resolve) => {
+    return new Promise((resolve) => {
 
-    if (typeof window === "undefined") {
-      resolve(false);
-      return;
-    }
-
-    if ((window as any).Razorpay) {
-      resolve(true);
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-
-    document.body.appendChild(script);
-  });
-}
-
-  /* ── PAYMENT CONFIRM ── */
- const handlePaymentConfirm = async () => {
-
-  if (!bookingId || !paymentMethod) return;
-
-  setLoading(true);
-
-  try {
-
-    if (paymentMethod === "cash") {
-
-      const res = await fetch(`/api/booking/${bookingId}/confirm-payment`, {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body:JSON.stringify({ method:"cash" })
-      });
-
-      const data = await res.json();
-
-      if(data.success){
-        window.location.href = `/ride/${bookingId}`;
+      if (typeof window === "undefined") {
+        resolve(false);
+        return;
       }
 
-      return;
-    }
+      if ((window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
 
-    /* LOAD RAZORPAY SCRIPT */
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
 
-    const razorpayLoaded = await loadRazorpayScript();
-
-    if (!razorpayLoaded) {
-      alert("Razorpay SDK failed to load");
-      return;
-    }
-
-    /* CREATE ORDER */
-
-    const orderRes = await fetch("/api/payment/create",{
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body:JSON.stringify({ bookingId })
+      document.body.appendChild(script);
     });
+  }
 
-    const orderData = await orderRes.json();
+  /* ── PAYMENT CONFIRM ── */
+  const handlePaymentConfirm = async () => {
 
-    const options = {
-      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY,
-      amount: orderData.amount,
-      currency: "INR",
-      name: "RYDEX",
-      description: "Ride Payment",
-      order_id: orderData.orderId,
+    if (!bookingId || !paymentMethod) return;
 
-      handler: async function (response:any) {
+    setLoading(true);
 
-        const verify = await fetch("/api/payment/verify",{
-          method:"POST",
-          headers:{ "Content-Type":"application/json" },
-          body:JSON.stringify({
-            bookingId,
-            ...response
-          })
+    try {
+
+      if (paymentMethod === "cash") {
+
+        const res = await fetch(`/api/booking/${bookingId}/confirm-payment`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ method: "cash" })
         });
 
-        const verifyData = await verify.json();
+        const data = await res.json();
 
-        if(verifyData.success){
+        if (data.success) {
           window.location.href = `/ride/${bookingId}`;
         }
 
+        return;
       }
-    };
 
-    const paymentObject = new (window as any).Razorpay(options);
-    paymentObject.open();
+      /* LOAD RAZORPAY SCRIPT */
 
-  }
+      const razorpayLoaded = await loadRazorpayScript();
 
-  catch(err){
-    console.error(err);
-    alert("Payment failed");
-  }
+      if (!razorpayLoaded) {
+        alert("Razorpay SDK failed to load");
+        return;
+      }
 
-  finally{
-    setLoading(false);
-  }
-};
+      /* CREATE ORDER */
+
+      const orderRes = await fetch("/api/payment/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId })
+      });
+
+      const orderData = await orderRes.json();
+
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY,
+        amount: orderData.amount,
+        currency: "INR",
+        name: "RYDEX",
+        description: "Ride Payment",
+        order_id: orderData.orderId,
+
+        handler: async function (response: any) {
+
+          const verify = await fetch("/api/payment/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              bookingId,
+              ...response
+            })
+          });
+
+          const verifyData = await verify.json();
+
+          if (verifyData.success) {
+            window.location.href = `/ride/${bookingId}`;
+          }
+
+        }
+      };
+
+      const paymentObject = new (window as any).Razorpay(options);
+      paymentObject.open();
+
+    }
+
+    catch (err) {
+      console.error(err);
+      alert("Payment failed");
+    }
+
+    finally {
+      setLoading(false);
+    }
+  };
 
   /* ── CANCEL ── */
   const handleCancelBooking = async () => {
@@ -185,8 +187,8 @@ export default function CheckoutPage() {
     const socket = getSocket();
     socket.on("booking-updated", (data) => {
       if (data.status === "awaiting_payment") setStatus("awaiting_payment");
-      if (data.status === "rejected")         setStatus("rejected");
-      if (data.status === "confirmed")        setStatus("confirmed");
+      if (data.status === "rejected") setStatus("rejected");
+      if (data.status === "confirmed") setStatus("confirmed");
     });
     return () => { socket.off("booking-updated"); };
   }, []);
@@ -194,7 +196,7 @@ export default function CheckoutPage() {
   /* ── RESTORE ── */
   useEffect(() => {
     (async () => {
-      const res  = await fetch("/api/booking/my-active");
+      const res = await fetch("/api/booking/my-active");
       const data = await res.json();
       if (data.booking) { setBookingId(data.booking._id); setStatus(data.booking.status); }
     })();
@@ -439,8 +441,8 @@ export default function CheckoutPage() {
 
                     <div className="space-y-3">
                       {[
-                        { id: "cash",   Icon: Banknote,    title: "Cash",           sub: "Pay driver after ride" },
-                        { id: "online", Icon: Wallet,      title: "Online Payment",  sub: "UPI · Card · Netbanking" },
+                        { id: "cash", Icon: Banknote, title: "Cash", sub: "Pay driver after ride" },
+                        { id: "online", Icon: Wallet, title: "Online Payment", sub: "UPI · Card · Netbanking" },
                       ].map(({ id, Icon, title, sub }) => {
                         const active = paymentMethod === id;
                         return (
@@ -448,13 +450,11 @@ export default function CheckoutPage() {
                             key={id}
                             whileTap={{ scale: 0.97 }}
                             onClick={() => setPaymentMethod(id as any)}
-                            className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all duration-200 ${
-                              active ? "bg-zinc-900 border-zinc-900" : "bg-zinc-50 border-zinc-200 hover:border-zinc-400"
-                            }`}
+                            className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all duration-200 ${active ? "bg-zinc-900 border-zinc-900" : "bg-zinc-50 border-zinc-200 hover:border-zinc-400"
+                              }`}
                           >
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
-                              active ? "bg-white/10" : "bg-zinc-200"
-                            }`}>
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${active ? "bg-white/10" : "bg-zinc-200"
+                              }`}>
                               <Icon size={18} className={active ? "text-white" : "text-zinc-600"} />
                             </div>
                             <div className="flex-1 min-w-0">
@@ -483,10 +483,10 @@ export default function CheckoutPage() {
                       {loading
                         ? <Loader2 size={17} className="animate-spin" />
                         : paymentMethod === "cash"
-                        ? <><Banknote size={16} /><span>Confirm Cash Ride</span></>
-                        : paymentMethod === "online"
-                        ? <><span>Proceed to Payment</span><ArrowRight size={16} /></>
-                        : <span>Select a Method</span>
+                          ? <><Banknote size={16} /><span>Confirm Cash Ride</span></>
+                          : paymentMethod === "online"
+                            ? <><span>Proceed to Payment</span><ArrowRight size={16} /></>
+                            : <span>Select a Method</span>
                       }
                     </motion.button>
                   </motion.div>
@@ -623,5 +623,22 @@ export default function CheckoutPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-zinc-100">
+          <div className="flex items-center gap-3 text-zinc-600 font-medium">
+            <Loader2 size={20} className="animate-spin" />
+            Loading checkout...
+          </div>
+        </div>
+      }
+    >
+      <CheckoutContent />
+    </Suspense>
   );
 }
